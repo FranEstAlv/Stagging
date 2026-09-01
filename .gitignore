@@ -8,7 +8,21 @@ datos_compartidos/
 
 # Mictlan/, OLIMPO/ y Docs/ son clones git propios (github.com/FranEstAlv/
 # Mictlan, /OLIMPO, /Docs), cada uno con su propia historia -- nunca se
-# anidan como contenido de este repo.
+# anidan como contenido de este repo (git los trata como "embedded
+# repository" apenas detecta su .git/ en disco, sin importar lo que diga
+# este archivo -- confirmado 2026-09-02, intentar ignorar solo su .git/
+# no alcanza). El contenido de Mictlan/ SI se trackea, pero como una
+# COPIA aparte sin .git propio -- ver mictlan-portado/ mas abajo.
 Mictlan/
 OLIMPO/
 Docs/
+
+# Copia de trabajo (sin historia git propia) del contenido de Mictlan/ en
+# el momento en que se genero -- a pedido explicito (2026-09-02), para
+# que lo portado/probado ahi tambien quede visible en Stagging sin
+# depender de pushear al repo oficial. Se regenera a mano
+# (rsync --delete) cada vez que haga falta actualizarla, no se edita
+# directo.
+!mictlan-portado/
+mictlan-portado/**/__pycache__/
+mictlan-portado/venv/
