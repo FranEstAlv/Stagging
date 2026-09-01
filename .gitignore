@@ -1,0 +1,14 @@
+.env
+__pycache__/
+venv/
+*.db
+external_modules/
+datos_compartidos/
+*.log
+
+# Mictlan/, OLIMPO/ y Docs/ son clones git propios (github.com/FranEstAlv/
+# Mictlan, /OLIMPO, /Docs), cada uno con su propia historia -- nunca se
+# anidan como contenido de este repo.
+Mictlan/
+OLIMPO/
+Docs/

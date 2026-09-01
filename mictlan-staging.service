@@ -1,0 +1,15 @@
+[Unit]
+Description=Mictlan Telegram Bot (staging, SQLite, desechable)
+After=network.target
+
+[Service]
+Type=simple
+User=olimpo
+WorkingDirectory=/home/olimpo/mictlan-staging
+EnvironmentFile=/home/olimpo/mictlan-staging/.env
+ExecStart=/home/olimpo/mictlan-staging/venv/bin/python main.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
