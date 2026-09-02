@@ -16,13 +16,3 @@ datos_compartidos/
 Mictlan/
 OLIMPO/
 Docs/
-
-# Copia de trabajo (sin historia git propia) del contenido de Mictlan/ en
-# el momento en que se genero -- a pedido explicito (2026-09-02), para
-# que lo portado/probado ahi tambien quede visible en Stagging sin
-# depender de pushear al repo oficial. Se regenera a mano
-# (rsync --delete) cada vez que haga falta actualizarla, no se edita
-# directo.
-!mictlan-portado/
-mictlan-portado/**/__pycache__/
-mictlan-portado/venv/
