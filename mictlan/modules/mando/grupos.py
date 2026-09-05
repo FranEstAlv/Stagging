@@ -8,7 +8,7 @@ from telegram.ext import ContextTypes
 
 from ... import invitaciones, paginacion
 from ...mensajes import agregar_boton_cerrar
-from ..grupos import activar, desactivar, establecer_principal, listar
+from ..grupos import activar, desactivar, establecer_modo_ingreso, establecer_principal, listar
 
 # Seccion "Grupos" de /mando -- la deteccion automatica ya existe
 # (modules/grupos.py, ChatMemberHandler sobre my_chat_member, decision ya
@@ -20,6 +20,7 @@ CB_GRUPOS = "mando:grp"
 CB_MENU = "mando:menu"
 
 _EMOJI_TIPO = {"group": "👥", "supergroup": "👥", "channel": "📢", "private": "👤"}
+_ETIQUETA_MODO_INGRESO = {"ninguno": "🚫 Ninguno", "captcha": "🧮 Captcha", "aprobacion": "🛂 Aprobación admin"}
 
 
 def _cb(*partes) -> str:
@@ -83,6 +84,7 @@ async def _vista_detalle(chat_id: int, pagina_origen: int = 0, nota: str | None 
         f"Estado: {'✅ activo' if g['activo'] else '⛔ inactivo'}",
         f"Agregado: {html.escape(str(g['agregado_en']))}",
         f"Principal: {'⭐ sí' if g['principal'] else 'no'}",
+        f"Ingreso de nuevo miembro: {_ETIQUETA_MODO_INGRESO.get(g['modo_ingreso'], g['modo_ingreso'])}",
     ]
     if nota:
         lineas.append("")
@@ -95,10 +97,25 @@ async def _vista_detalle(chat_id: int, pagina_origen: int = 0, nota: str | None 
         filas.append([InlineKeyboardButton("✅ Activar", callback_data=_cb("activar", chat_id, pagina_origen))])
     if not g["principal"]:
         filas.append([InlineKeyboardButton("⭐ Marcar como principal", callback_data=_cb("principal", chat_id, pagina_origen))])
-    else:
-        # Link de invitacion: SOLO se genera para el grupo principal desde
-        # /mando -- los grupos/canales secundarios usan el comando /canales
-        # (mictlan/modules/canales.py), no este panel.
+
+    # Modo de ingreso: captcha de aritmetica vs aprobacion manual de un
+    # admin/vendedor -- nunca ambos a la vez, ver mictlan/bienvenida.py /
+    # mictlan/ingreso_admin.py. Solo se muestran los botones de los modos
+    # que NO son el actual.
+    modo_actual = g["modo_ingreso"]
+    botones_modo = [
+        InlineKeyboardButton(etiqueta, callback_data=_cb("modo", chat_id, pagina_origen, modo))
+        for modo, etiqueta in _ETIQUETA_MODO_INGRESO.items()
+        if modo != modo_actual
+    ]
+    filas.append(botones_modo)
+
+    if g["principal"] or modo_actual == "aprobacion":
+        # Link de invitacion: se genera para el grupo principal y para
+        # cualquier grupo en modo 'aprobacion' (el propio diseño de ALFA-1
+        # que se está espejando incluye ese link) -- los grupos/canales
+        # secundarios sin ese modo usan /canales (mictlan/modules/canales.py),
+        # no este panel.
         ultimo = await invitaciones.ultimo_link(chat_id)
         if ultimo:
             lineas.append("")
@@ -146,6 +163,13 @@ async def manejar(context: ContextTypes.DEFAULT_TYPE, admin_id: int, partes: lis
     if accion == "principal":
         await establecer_principal(chat_id)
         return await _vista_detalle(chat_id, pagina_origen, "⭐ Marcado como grupo principal.")
+
+    if accion == "modo":
+        modo = partes[3] if len(partes) > 3 else None
+        if modo not in _ETIQUETA_MODO_INGRESO:
+            return await _vista_detalle(chat_id, pagina_origen)
+        await establecer_modo_ingreso(chat_id, modo)
+        return await _vista_detalle(chat_id, pagina_origen, f"✅ Ingreso configurado como {_ETIQUETA_MODO_INGRESO[modo]}.")
 
     if accion == "link":
         try:

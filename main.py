@@ -15,6 +15,8 @@ from telegram.ext import (
 )
 
 from mictlan import almacen_modulos, db, heartbeat, moderacion, roles, sdk, vencimientos
+from mictlan.bienvenida import install_bienvenida
+from mictlan.ingreso_admin import install_ingreso_admin
 from mictlan.mensajes import enviar_mensaje_servicio, install_mensajes
 from mictlan.modules.canales import install_canales
 from mictlan.modules.creditos import install_creditos
@@ -119,6 +121,8 @@ def main() -> None:
     install_creditos(app)
     install_canales(app)
     moderacion.install_moderacion(app)
+    install_bienvenida(app)
+    install_ingreso_admin(app)
     vencimientos.install_vencimientos(app)
     heartbeat.install_heartbeat(app)
     # Observador de solo lectura -- grupo aparte, no interfiere con los

@@ -1,0 +1,75 @@
+ESTADO DE SESION - mictlan-staging - 2026-09-04 2026-09-04T08:22:30Z
+==================================================
+
+### git status --short
+?? ESTADO_SESION_2026-09-04.txt
+?? LEVANTAR_SERVICIO_SYSTEMD.txt
+?? Report/
+
+### git log --oneline -3
+c9ffe62 Agrega mictlan-portado/: copia del working tree de Mictlan/ (sin su .git propio)
+5b3d4a1 Agrega PROGRESO.md: bitácora de pruebas manuales/funcionales de este repo
+570539c Commit inicial: código real de mictlan-staging (ambiente de pruebas descartable)
+
+### unit diff (repo vs /etc)
+unit identica
+
+### systemctl is-enabled / is-active
+enabled=enabled active=active
+
+### systemctl status --no-pager
+● mictlan-staging.service - Mictlan Telegram Bot (staging, SQLite, desechable)
+     Loaded: loaded (/etc/systemd/system/mictlan-staging.service; enabled; preset: enabled)
+     Active: active (running) since Fri 2026-09-04 08:09:56 CEST; 2h 12min ago
+   Main PID: 1347915 (python)
+      Tasks: 3 (limit: 9483)
+     Memory: 258.8M (peak: 291.5M)
+        CPU: 16.366s
+     CGroup: /system.slice/mictlan-staging.service
+             └─1347915 /home/olimpo/mictlan-staging/venv/bin/python main.py
+
+Sep 04 10:22:22 vmi3464216 python[1347915]: 2026-09-04 10:22:22,965 DEBUG apscheduler.scheduler: Looking for jobs to run
+Sep 04 10:22:22 vmi3464216 python[1347915]: 2026-09-04 10:22:22,967 DEBUG apscheduler.scheduler: Next wakeup is due at 2026-09-04 08:22:47.962034+00:00 (in 24.994945 seconds)
+Sep 04 10:22:22 vmi3464216 python[1347915]: 2026-09-04 10:22:22,968 INFO apscheduler.executors.default: Running job "_tick_ambos (trigger: interval[0:00:30], next run at: 2026-09-04 08:22:52 UTC)" (scheduled at 2026-09-04 08:22:22.962380+00:00)
+Sep 04 10:22:22 vmi3464216 python[1347915]: 2026-09-04 10:22:22,975 DEBUG aiosqlite: executing functools.partial(<built-in method execute of sqlite3.Connection object at 0x7cad9ce3eb60>, 'SELECT * FROM publicaciones_modulo WHERE module_id = ? AND destino = ?', ('panelpub', 'ambos'))
+Sep 04 10:22:22 vmi3464216 python[1347915]: 2026-09-04 10:22:22,977 DEBUG aiosqlite: operation functools.partial(<built-in method execute of sqlite3.Connection object at 0x7cad9ce3eb60>, 'SELECT * FROM publicaciones_modulo WHERE module_id = ? AND destino = ?', ('panelpub', 'ambos')) completed
+Sep 04 10:22:22 vmi3464216 python[1347915]: 2026-09-04 10:22:22,980 DEBUG aiosqlite: executing functools.partial(<built-in method fetchone of sqlite3.Cursor object at 0x7cad84df06c0>)
+Sep 04 10:22:22 vmi3464216 python[1347915]: 2026-09-04 10:22:22,980 DEBUG aiosqlite: operation functools.partial(<built-in method fetchone of sqlite3.Cursor object at 0x7cad84df06c0>) completed
+Sep 04 10:22:22 vmi3464216 python[1347915]: 2026-09-04 10:22:22,982 DEBUG aiosqlite: executing functools.partial(<built-in method close of sqlite3.Cursor object at 0x7cad84df06c0>)
+Sep 04 10:22:22 vmi3464216 python[1347915]: 2026-09-04 10:22:22,982 DEBUG aiosqlite: operation functools.partial(<built-in method close of sqlite3.Cursor object at 0x7cad84df06c0>) completed
+Sep 04 10:22:22 vmi3464216 python[1347915]: 2026-09-04 10:22:22,982 INFO apscheduler.executors.default: Job "_tick_ambos (trigger: interval[0:00:30], next run at: 2026-09-04 08:22:52 UTC)" executed successfully
+
+### journalctl -u mictlan-staging.service -n 30 --no-pager (token redactado)
+Hint: You are currently not seeing messages from other users and the system.
+      Users in groups 'adm', 'systemd-journal' can see all messages.
+      Pass -q to turn off this notice.
+Sep 04 10:22:17 vmi3464216 python[1347915]: 2026-09-04 10:22:17,970 DEBUG aiosqlite: operation functools.partial(<built-in method execute of sqlite3.Connection object at 0x7cad9ce3eb60>, 'SELECT * FROM publicaciones_modulo WHERE module_id = ? AND destino = ?', ('panelpub', 'grupo')) completed
+Sep 04 10:22:17 vmi3464216 python[1347915]: 2026-09-04 10:22:17,971 DEBUG aiosqlite: executing functools.partial(<built-in method fetchone of sqlite3.Cursor object at 0x7cad84df06c0>)
+Sep 04 10:22:17 vmi3464216 python[1347915]: 2026-09-04 10:22:17,971 DEBUG aiosqlite: operation functools.partial(<built-in method fetchone of sqlite3.Cursor object at 0x7cad84df06c0>) completed
+Sep 04 10:22:17 vmi3464216 python[1347915]: 2026-09-04 10:22:17,971 DEBUG aiosqlite: executing functools.partial(<built-in method close of sqlite3.Cursor object at 0x7cad84df06c0>)
+Sep 04 10:22:17 vmi3464216 python[1347915]: 2026-09-04 10:22:17,971 DEBUG aiosqlite: operation functools.partial(<built-in method close of sqlite3.Cursor object at 0x7cad84df06c0>) completed
+Sep 04 10:22:17 vmi3464216 python[1347915]: 2026-09-04 10:22:17,971 INFO apscheduler.executors.default: Job "_tick_grupo (trigger: interval[0:00:30], next run at: 2026-09-04 08:22:47 UTC)" executed successfully
+Sep 04 10:22:21 vmi3464216 python[1347915]: 2026-09-04 10:22:21,663 DEBUG httpcore.http11: receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Server', b'nginx/1.30.1'), (b'Date', b'Fri, 04 Sep 2026 08:22:21 GMT'), (b'Content-Type', b'application/json'), (b'Content-Length', b'23'), (b'Connection', b'keep-alive'), (b'Strict-Transport-Security', b'max-age=31536000; includeSubDomains; preload'), (b'Access-Control-Allow-Origin', b'*'), (b'Access-Control-Allow-Methods', b'GET, POST, OPTIONS'), (b'Access-Control-Expose-Headers', b'Content-Length,Content-Type,Date,Server,Connection')])
+Sep 04 10:22:21 vmi3464216 python[1347915]: 2026-09-04 10:22:21,663 INFO httpx: HTTP Request: POST https://api.telegram.org/bot***TOKEN***/getUpdates "HTTP/1.1 200 OK"
+Sep 04 10:22:21 vmi3464216 python[1347915]: 2026-09-04 10:22:21,663 DEBUG httpcore.http11: receive_response_body.started request=<Request [b'POST']>
+Sep 04 10:22:21 vmi3464216 python[1347915]: 2026-09-04 10:22:21,663 DEBUG httpcore.http11: receive_response_body.complete
+Sep 04 10:22:21 vmi3464216 python[1347915]: 2026-09-04 10:22:21,664 DEBUG httpcore.http11: response_closed.started
+Sep 04 10:22:21 vmi3464216 python[1347915]: 2026-09-04 10:22:21,664 DEBUG httpcore.http11: response_closed.complete
+Sep 04 10:22:21 vmi3464216 python[1347915]: 2026-09-04 10:22:21,664 DEBUG telegram.ext.ExtBot: Call to Bot API endpoint `getUpdates` finished with return value `[]`
+Sep 04 10:22:21 vmi3464216 python[1347915]: 2026-09-04 10:22:21,664 DEBUG telegram.ext.ExtBot: No new updates found.
+Sep 04 10:22:21 vmi3464216 python[1347915]: 2026-09-04 10:22:21,665 DEBUG telegram.ext.ExtBot: Calling Bot API endpoint `getUpdates` with parameters `{'timeout': 10, 'offset': 0, 'allowed_updates': [<UpdateType.MESSAGE>, <UpdateType.EDITED_MESSAGE>, <UpdateType.CHANNEL_POST>, <UpdateType.EDITED_CHANNEL_POST>, <UpdateType.INLINE_QUERY>, <UpdateType.CHOSEN_INLINE_RESULT>, <UpdateType.CALLBACK_QUERY>, <UpdateType.SHIPPING_QUERY>, <UpdateType.PRE_CHECKOUT_QUERY>, <UpdateType.POLL>, <UpdateType.POLL_ANSWER>, <UpdateType.MY_CHAT_MEMBER>, <UpdateType.CHAT_MEMBER>, <UpdateType.CHAT_JOIN_REQUEST>, <UpdateType.CHAT_BOOST>, <UpdateType.REMOVED_CHAT_BOOST>, <UpdateType.MESSAGE_REACTION>, <UpdateType.MESSAGE_REACTION_COUNT>, <UpdateType.BUSINESS_CONNECTION>, <UpdateType.BUSINESS_MESSAGE>, <UpdateType.EDITED_BUSINESS_MESSAGE>, <UpdateType.DELETED_BUSINESS_MESSAGES>, <UpdateType.PURCHASED_PAID_MEDIA>]}`
+Sep 04 10:22:21 vmi3464216 python[1347915]: 2026-09-04 10:22:21,666 DEBUG httpcore.http11: send_request_headers.started request=<Request [b'POST']>
+Sep 04 10:22:21 vmi3464216 python[1347915]: 2026-09-04 10:22:21,666 DEBUG httpcore.http11: send_request_headers.complete
+Sep 04 10:22:21 vmi3464216 python[1347915]: 2026-09-04 10:22:21,666 DEBUG httpcore.http11: send_request_body.started request=<Request [b'POST']>
+Sep 04 10:22:21 vmi3464216 python[1347915]: 2026-09-04 10:22:21,666 DEBUG httpcore.http11: send_request_body.complete
+Sep 04 10:22:21 vmi3464216 python[1347915]: 2026-09-04 10:22:21,666 DEBUG httpcore.http11: receive_response_headers.started request=<Request [b'POST']>
+Sep 04 10:22:22 vmi3464216 python[1347915]: 2026-09-04 10:22:22,965 DEBUG apscheduler.scheduler: Looking for jobs to run
+Sep 04 10:22:22 vmi3464216 python[1347915]: 2026-09-04 10:22:22,967 DEBUG apscheduler.scheduler: Next wakeup is due at 2026-09-04 08:22:47.962034+00:00 (in 24.994945 seconds)
+Sep 04 10:22:22 vmi3464216 python[1347915]: 2026-09-04 10:22:22,968 INFO apscheduler.executors.default: Running job "_tick_ambos (trigger: interval[0:00:30], next run at: 2026-09-04 08:22:52 UTC)" (scheduled at 2026-09-04 08:22:22.962380+00:00)
+Sep 04 10:22:22 vmi3464216 python[1347915]: 2026-09-04 10:22:22,975 DEBUG aiosqlite: executing functools.partial(<built-in method execute of sqlite3.Connection object at 0x7cad9ce3eb60>, 'SELECT * FROM publicaciones_modulo WHERE module_id = ? AND destino = ?', ('panelpub', 'ambos'))
+Sep 04 10:22:22 vmi3464216 python[1347915]: 2026-09-04 10:22:22,977 DEBUG aiosqlite: operation functools.partial(<built-in method execute of sqlite3.Connection object at 0x7cad9ce3eb60>, 'SELECT * FROM publicaciones_modulo WHERE module_id = ? AND destino = ?', ('panelpub', 'ambos')) completed
+Sep 04 10:22:22 vmi3464216 python[1347915]: 2026-09-04 10:22:22,980 DEBUG aiosqlite: executing functools.partial(<built-in method fetchone of sqlite3.Cursor object at 0x7cad84df06c0>)
+Sep 04 10:22:22 vmi3464216 python[1347915]: 2026-09-04 10:22:22,980 DEBUG aiosqlite: operation functools.partial(<built-in method fetchone of sqlite3.Cursor object at 0x7cad84df06c0>) completed
+Sep 04 10:22:22 vmi3464216 python[1347915]: 2026-09-04 10:22:22,982 DEBUG aiosqlite: executing functools.partial(<built-in method close of sqlite3.Cursor object at 0x7cad84df06c0>)
+Sep 04 10:22:22 vmi3464216 python[1347915]: 2026-09-04 10:22:22,982 DEBUG aiosqlite: operation functools.partial(<built-in method close of sqlite3.Cursor object at 0x7cad84df06c0>) completed
+Sep 04 10:22:22 vmi3464216 python[1347915]: 2026-09-04 10:22:22,982 INFO apscheduler.executors.default: Job "_tick_ambos (trigger: interval[0:00:30], next run at: 2026-09-04 08:22:52 UTC)" executed successfully

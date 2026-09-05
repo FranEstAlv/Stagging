@@ -1,0 +1,179 @@
+LEVANTAR MICTLAN-STAGING POR SYSTEMCTL (venv + unit)
+====================================================
+Fecha: 2026-09-04
+Repo: /home/olimpo/mictlan-staging
+Servicio: mictlan-staging.service
+Entry point: main.py (bot principal, polling Telegram)
+Interprete: /home/olimpo/mictlan-staging/venv/bin/python (venv, Python 3.12)
+
+1. QUE LEVANTA ESTE SERVICIO
+----------------------------
+- Bot principal: main.py (Application de python-telegram-bot, SQLite via DATABASE_URL).
+- Logs a stdout -> systemd los vuelca al journal (journalctl -u mictlan-staging.service).
+- NO incluye mictlantecuhtli.py (segundo bot de respaldo). Hoy ese corre manual
+  con `nohup python mictlantecuhtli.py &`. Si lo quieres como servicio, crea otra
+  unit separada (ver NOTA 6).
+
+2. ESTRUCTURA ESPERADA EN DISCO
+-------------------------------
+/home/olimpo/mictlan-staging/
+  main.py
+  mictlantecuhtli.py
+  requirements.txt          (python-telegram-bot[job-queue]==21.6, aiosqlite, python-dotenv)
+  .env                      (NO esta en git, ver .gitignore; crear a mano)
+  venv/bin/python           (venv del proyecto)
+  mictlan-staging.service   (copia de referencia de la unit; la activa es /etc/systemd/system/)
+  mictlan/                  (codigo del bot)
+
+Unit activa: /etc/systemd/system/mictlan-staging.service
+Contenido actual (identico a la copia del repo):
+  [Unit]
+  Description=Mictlan Telegram Bot (staging, SQLite, desechable)
+  After=network.target
+
+  [Service]
+  Type=simple
+  User=olimpo
+  WorkingDirectory=/home/olimpo/mictlan-staging
+  EnvironmentFile=/home/olimpo/mictlan-staging/.env
+  ExecStart=/home/olimpo/mictlan-staging/venv/bin/python main.py
+  Restart=on-failure
+  RestartSec=5
+
+  [Install]
+  WantedBy=multi-user.target
+
+3. REQUISITOS PREVIOS
+---------------------
+- Ubuntu con systemd, usuario `olimpo` existente.
+- Python 3.12 del sistema (/usr/bin/python3).
+- Red hacia api.telegram.org (After=network.target).
+- Permisos: /home/olimpo/mictlan-staging propiedad de olimpo; el .service en
+  /etc/systemd/system requiere sudo/root para instalar.
+
+4. PASO 1 - CREAR / REPARAR EL VENV E INSTALAR DEPENDENCIAS
+----------------------------------------------------------
+cd /home/olimpo/mictlan-staging
+
+# Solo si no existe venv/:
+python3 -m venv venv
+
+# Instalar dependencias (siempre con el python del venv):
+./venv/bin/pip install --upgrade pip
+./venv/bin/pip install -r requirements.txt
+
+# Verificar:
+./venv/bin/python --version
+./venv/bin/python -c "import telegram, aiosqlite, dotenv; print('deps ok')"
+
+5. PASO 2 - ARCHIVO .ENV
+------------------------
+Ruta obligatoria: /home/olimpo/mictlan-staging/.env
+La unit lo carga con EnvironmentFile=. Si falta o tiene una variable mal,
+el servicio falla al arrancar.
+
+Variables requeridas (solo nombres, NUNCA pegar valores en git/docs):
+  TELEGRAM_BOT_TOKEN=
+  DATABASE_URL=sqlite:////home/olimpo/mictlan-staging/mictlan_staging.db
+  ROOT_ID=
+  ADMIN_GROUP_ID=
+  (+ opcionales de proveedores: DATAIMPULSE_PROXY_URL, CAPSOLVER_API_KEY,
+    TWOCAPTCHA_API_KEY, ANTICAPTCHA_API_KEY, HEROSMS_API_KEY, SMSPOOL_API_KEY,
+    DECODO_AMAZON_API_KEY, MICTLANTECUHTLI_BOT_TOKEN, TECUHTLI_SECRETO_RECUPERACION)
+
+Permisos recomendados (contiene secretos):
+  chmod 600 /home/olimpo/mictlan-staging/.env
+
+Prueba rapida antes de systemd (deten con Ctrl+C):
+  ./venv/bin/python main.py
+
+6. PASO 3 - INSTALAR / ACTUALIZAR LA UNIT DE SYSTEMD
+---------------------------------------------------
+# 1) Copiar la unit del repo a systemd (requiere sudo):
+sudo cp /home/olimpo/mictlan-staging/mictlan-staging.service /etc/systemd/system/mictlan-staging.service
+
+# 2) Recargar systemd (obligatorio tras cada cambio del .service):
+sudo systemctl daemon-reload
+
+# 3) Habilitar arranque automatico al boot:
+sudo systemctl enable mictlan-staging.service
+
+7. PASO 4 - OPERACION DIARIA
+---------------------------
+# Arrancar / reiniciar tras un cambio de codigo:
+sudo systemctl restart mictlan-staging.service
+
+# Primera vez (si solo estaba enable pero no start):
+sudo systemctl start mictlan-staging.service
+
+# Estado:
+systemctl status mictlan-staging.service --no-pager
+systemctl is-enabled mictlan-staging.service
+systemctl is-active mictlan-staging.service
+
+# Detener:
+sudo systemctl stop mictlan-staging.service
+
+# Deshabilitar autoboot (el servicio queda detenido tras reboot):
+sudo systemctl disable mictlan-staging.service
+
+8. PASO 5 - VER LOGS (SIN SUDO, service es User=olimpo)
+------------------------------------------------------
+# Ultimas 100 lineas y seguir en vivo:
+journalctl -u mictlan-staging.service -n 100 -f
+
+# Solo errores desde el ultimo arranque:
+journalctl -u mictlan-staging.service -p err -b
+
+# Tras un restart, confirmar arranque limpio:
+sudo systemctl restart mictlan-staging.service
+journalctl -u mictlan-staging.service -n 50 --no-pager
+
+El arranque sano muestra: "Mictlan (staging) arrancando...".
+Nivel TRACE activo: incluye detalle httpx/telegram con el token redactado
+como ***TOKEN*** por main.py. No publiques el journal sin revisar.
+
+9. FLUJO COMPLETO DESDE CERO (COPIAR/PEGAR)
+------------------------------------------
+cd /home/olimpo/mictlan-staging
+python3 -m venv venv  # solo si no existe
+./venv/bin/pip install --upgrade pip
+./venv/bin/pip install -r requirements.txt
+# crear/editar .env y chmod 600
+./venv/bin/python main.py  # prueba manual, Ctrl+C para salir
+sudo cp mictlan-staging.service /etc/systemd/system/mictlan-staging.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now mictlan-staging.service
+systemctl status mictlan-staging.service --no-pager
+journalctl -u mictlan-staging.service -n 50 --no-pager
+
+10. TROUBLESHOOTING
+-------------------
+- `EnvironmentFile ... not found` -> falta /home/olimpo/mictlan-staging/.env.
+- `TELEGRAM_BOT_TOKEN KeyError` / `ROOT_ID KeyError` -> variable ausente en .env.
+- `Conflict: terminated by other getUpdates request` -> hay OTRA instancia
+  corriendo (manual + systemd a la vez, o token duplicado en otro host).
+  Solucion: `ps aux | grep '[m]ain.py'` y mata el proceso manual, deja solo systemd.
+- `database is locked` (SQLite) -> main.py y otro proceso escriben a la vez.
+  No corras dos main.py contra la misma mictlan_staging.db.
+- Cambiaste el .service y no surte efecto -> olvidaste `sudo systemctl daemon-reload`
+  antes del restart.
+- Permisos: WorkingDirectory y .env deben ser legibles por User=olimpo.
+  `sudo chown -R olimpo:olimpo /home/olimpo/mictlan-staging` si algo quedo como root.
+
+NOTAS
+-----
+1. Edita siempre la copia del repo (mictlan-staging.service) y luego copiala a
+   /etc/systemd/system/ + daemon-reload. No las dejes divergir
+   (verificar con: diff mictlan-staging.service /etc/systemd/system/mictlan-staging.service).
+2. Cada deploy de codigo: `sudo systemctl restart mictlan-staging.service` +
+   revisar journal sin errores (metodo estandar segun PROGRESO.md).
+3. .env, venv/, *.db, *.log NUNCA van a git (ver .gitignore). Antes de cada push,
+   confirmar que no se cuela ningun secreto.
+4. Esta unit usa Restart=on-failure (no always): si main.py sale con codigo 0
+   (salida limpia), systemd NO lo reinicia.
+5. Estado al generar este documento: unit instalada, enabled y active,
+   copia repo y /etc identicas (diff limpio).
+6. Para systemd-izar mictlantecuhtli.py: crear p.ej. mictlantecuhtli-staging.service
+   con ExecStart=.../venv/bin/python mictlantecuhtli.py, misma WorkingDirectory y
+   EnvironmentFile, y repetir pasos 6-7. Ver Mictlan/DESPLIEGUE_MICTLANTECUHTLI.md.

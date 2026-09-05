@@ -21,6 +21,136 @@ Entradas en orden cronológico inverso (más reciente primero).
 
 ---
 
+## Esqueleto funcional del proyecto (snapshot 2026-09-05)
+
+**Esto es una foto de un momento puntual, no un documento vivo** — puede
+quedar desactualizado apenas se agregue/cambie una feature. Nunca
+reemplaza leer el código real (`mictlan/`, `main.py`); sirve para
+orientarse rápido sobre qué existe y dónde, no como fuente de verdad.
+
+**Núcleo** (`mictlan/`): `db.py` — pool `aiosqlite` + esquema completo
+(`usuarios`, `membresias`, `blacklist`, `expulsiones`, `mantenimiento`,
+`reportes`, `sdk_modulos`, `grupos`, `publicaciones_modulo`,
+`creditos_ledger`, `invitaciones`, `heartbeats`, `tecuhtli_estado`,
+`captchas_bienvenida`, `pendientes_ingreso`), traductor de sintaxis
+Postgres→SQLite, migraciones de columnas + backfills. `roles.py` —
+jerarquía miembro/vendedor/administrador/root y el único punto que
+traduce rol→emoji (nunca texto plano). `mensajes.py` — envío de mensajes
+de servicio con botón "Cerrar" + autoborrado a 30 min. `formato.py` —
+helpers de HTML de Telegram (negrita, cursiva, link, etc.).
+`paginacion.py` — paginador genérico 2×3 reusable por cualquier panel.
+
+**Membresía, moderación e ingreso de nuevo miembro**: `membresias.py`
+(ajuste de días, vencidas()), `moderacion.py` (baneo real = expulsión de
+todos los grupos + blacklist con motivo/foto, guardia de reingreso),
+`vencimientos.py` (job cada hora, expulsión automática por membresía
+vencida, sin blacklist), `invitaciones.py` (links de un solo uso,
+`member_limit=1`), `modules/grupos.py` (detección automática de
+grupos/canales vía `my_chat_member`, grupo principal exclusivo, y el
+selector `modo_ingreso` por grupo: `ninguno`/`captcha`/`aprobacion`).
+Dos gates alternativos de nuevo miembro, nunca ambos a la vez para el
+mismo chat: `bienvenida.py` (captcha de aritmética con botones, kick con
+des-baneo si vence el plazo) e `ingreso_admin.py` (aviso a
+`ADMIN_GROUP_ID` con botón "Aceptar", ban real sin des-banear si nadie
+acepta en 1 minuto — espejo del mecanismo real de ALFA-1). Los tres
+guardianes de `ChatMemberHandler.CHAT_MEMBER` (blacklist, captcha,
+aprobación) viven en handler-groups distintos (0/1/2) a propósito.
+
+**Consola `/mando`** (`modules/mando/`): `__init__.py` — router +
+gate de permiso (DM o `ADMIN_GROUP_ID`, rol root). `usuarios.py` —
+panel paginado, detalle con membresía/rol/baneo, ajuste de días,
+cambio de rol. `baneo.py` — `ConversationHandler` motivo→foto,
+registrado antes del router genérico. `grupos.py` — panel de
+grupos, activar/desactivar, marcar principal, selector de
+`modo_ingreso`, generar link de invitación. `modulos.py` — gestión en
+caliente del SDK de módulos externos (activar/desactivar/eliminar/
+alternar origen/detectar). `mantenimiento.py` — ventanas fijas (30
+min/2h/indefinido).
+
+**Comandos de miembro** (fuera de `/mando`): `modules/perfil.py`
+(`/perfil` — rol, membresía, saldo), `modules/reporte.py` (`/reporte` —
+guarda + notifica a `ADMIN_GROUP_ID` con botón "Atendido"),
+`modules/canales.py` (`/canales` — miembro con membresía activa, dentro
+del grupo principal, se autogenera un link a un grupo/canal secundario),
+`modules/creditos.py` (`/otorgar` — root-only, acuña créditos).
+
+**Créditos** (`creditos.py`): ledger insert-only, saldo derivado de
+`SUM(delta)`, candado global (`asyncio.Lock`) para evitar doble gasto
+bajo concurrencia. `otorgar()` (acuña, solo interno/root) separado de
+`cobrar()`/`reembolsar()` (los únicos expuestos a módulos externos vía
+el SDK).
+
+**SDK de módulos externos** (`sdk/`, paquete de 12 archivos de una sola
+responsabilidad): `scopes.py` (allowlist de permisos + prefijos
+peligrosos bloqueados), `manifiestos.py` (lee `manifest.json`),
+`importador.py` (import dinámico del `.py`), `ciclo_vida.py`
+(activar/desactivar/eliminar en caliente, `remove_handler` real +
+cancelación de jobs, guardia contra reimportación), `contexto.py`
+(`ContextoModulo`, ensambla los facades), `facades_externos.py`
+(`ProxyFacade`/`CaptchaFacade`/`SmsFacade`), `facades_creditos.py`
+(asimetría deliberada, sin `otorgar()`), `facades_datos.py`
+(`DatosFacade` de solo lectura + `AlmacenPropioFacade` escribible),
+`facades_canal.py` (`CanalFacade`, publicación multi-destino),
+`recorders.py` (wrappers de `Application`/`job_queue` para poder
+desinstalar), `excepciones.py`, `rutas.py`. Infraestructura de apoyo:
+`almacen_modulos.py` (un SQLite propio por módulo, WAL, candado propio),
+`datos.py` (lectura de CSV/SQLite de referencia, propios/compartidos),
+`canal.py` (config de publicación por módulo/destino), `proxy.py`
+(DataImpulse), `captcha.py` (resolución de captchas de terceros vía
+2Captcha/Anti-Captcha/CapSolver, incluido Cloudflare Turnstile),
+`smsvirtual.py` (HeroSMS/SMSPool). Estas dos últimas piezas son
+servicios que el propio BOT consume — sin relación con
+`bienvenida.py`/`ingreso_admin.py` pese al nombre parecido de
+`captcha.py`.
+
+**Mictlantecuhtli** (segundo bot de respaldo/failover, proceso separado):
+`heartbeat.py` (instalado en el bot PRINCIPAL, late cada 60s, poda a
+500 filas), `mictlantecuhtli.py` (entrypoint propio, mismo
+`DATABASE_URL`, sin sdk/roles.asegurar_root), `tecuhtli/estado.py`
+(máquina de 5 fases por umbrales), `tecuhtli/evaluador.py` (job cada
+30s, fase `respaldo_activo` "pegajosa"), `tecuhtli/acciones.py`
+(restringir/liberar todos los grupos gestionados, nunca banea/expulsa),
+`tecuhtli/recuperacion.py` (`/reactivar` con secreto + ventana de 30s,
+`/tecuhtli_simular`).
+
+**Entrypoint** (`main.py`): arma la `Application`, `load_dotenv()`,
+logging propio con redacción de token, registra cada `install_xxx(app)`
+en orden (baneo antes que mando por el `ConversationHandler`),
+`allowed_updates=Update.ALL_TYPES` (necesario para `chat_member`).
+
+---
+
+### 2026-09-05 — Captcha de bienvenida generalizado + ingreso por aprobación de admin + selector de modo por grupo
+
+- **Qué se probó**: `mictlan/bienvenida.py` (captcha de aritmética con
+  botones al entrar a un grupo, generalizado para aplicar a CUALQUIER
+  grupo con `grupos.modo_ingreso='captcha'`, ya no solo el principal);
+  `mictlan/ingreso_admin.py` (espejo del mecanismo real de ALFA-1,
+  `samaritan/core.py`: `send_welcome_message`/`pending_new_members`/
+  `activate_button_handler`/`auto_expel_unapproved_member` — nuevo
+  miembro silenciado, aviso con botón "✅ Aceptar" a `ADMIN_GROUP_ID`
+  (adaptación pedida por Fernando: ALFA-1 lo manda al grupo privado,
+  Mictlan al grupo de gestión), gateado a rol ≥ vendedor, ventana de 1
+  minuto, **ban real sin des-banear** si nadie acepta a tiempo — a
+  diferencia del captcha normal, que sí des-banea/kickea); nuevo panel
+  en `/mando > Grupos` para elegir `modo_ingreso` por grupo
+  (`ninguno`/`captcha`/`aprobacion`), con backfill que preserva el
+  captcha ya activo en el grupo principal sin pisar un modo ya elegido a
+  propósito.
+- **Cómo**: 19 aserciones (`bienvenida.py`) + 20 aserciones
+  (`ingreso_admin.py` + selector de modo), ambas con SQLite temporal +
+  una `Application` real de `python-telegram-bot` (Bot API mockeada con
+  `AsyncMock`, nunca red real) — incluye el caso de administrador/root
+  exento, click de un usuario no destinatario, timeout idempotente
+  (job que corre después de que ya se resolvió), y la convivencia de los
+  tres guardianes de `ChatMemberHandler.CHAT_MEMBER`
+  (`moderacion.py`/`bienvenida.py`/`ingreso_admin.py`) en handler-groups
+  separados (0/1/2) — sin esa separación, python-telegram-bot solo
+  ejecuta el primero que matchea dentro de un mismo grupo y los otros
+  dos nunca correrían.
+- **Resultado**: ✅ 19/19 y ✅ 20/20. Desplegado (`systemctl restart
+  mictlan-staging.service`), journal limpio en ambos redeploys.
+
 ### 2026-09-02 — Mictlantecuhtli: heartbeat, máquina de estados, recuperación
 
 - **Qué se probó**: `mictlan/heartbeat.py` (escritura real de latidos +

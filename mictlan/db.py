@@ -202,6 +202,44 @@ CREATE TABLE IF NOT EXISTS tecuhtli_estado (
     ventana_hasta TEXT,
     motivo TEXT
 );
+
+-- Captcha de bienvenida: reto que se le presenta a un usuario nuevo al
+-- entrar al grupo principal, silenciado hasta que lo resuelve o se
+-- cumple el plazo (ver mictlan/bienvenida.py). Espejo del concepto de
+-- ALFA-1 (samaritan/services/captcha.py: group_captcha_challenges),
+-- reescrito de cero. A lo sumo un reto activo por (chat_id, user_id) --
+-- si el mismo usuario reingresa antes de resolver el anterior, se
+-- reemplaza (ON CONFLICT), nunca dos retos activos a la vez para el
+-- mismo usuario en el mismo chat.
+CREATE TABLE IF NOT EXISTS captchas_bienvenida (
+    chat_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    respuesta_correcta TEXT NOT NULL,
+    message_id INTEGER NOT NULL,
+    activo INTEGER NOT NULL DEFAULT 1,
+    creado_en TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    resuelto_en TEXT,
+    PRIMARY KEY (chat_id, user_id)
+);
+
+-- Ingreso por aprobacion de administrador: espejo del mecanismo real de
+-- ALFA-1 (samaritan/core.py: send_welcome_message + pending_new_members +
+-- auto_expel_unapproved_member), reescrito de cero -- ver mictlan/ingreso_admin.py.
+-- Un nuevo miembro queda muteado y "pendiente" hasta que un admin/vendedor
+-- lo acepta desde ADMIN_GROUP_ID (ALFA-1 manda el boton al propio grupo
+-- privado; Mictlan lo manda al grupo de gestion) o se cumple el plazo de 1
+-- minuto -- ahi lo expulsa de ese chat (ban real, sin unban -- igual que
+-- ALFA-1, a diferencia del captcha normal que si des-banea). Alternativa a
+-- captchas_bienvenida: un grupo usa UNA sola de las dos segun
+-- grupos.modo_ingreso (ver mictlan/modules/grupos.py).
+CREATE TABLE IF NOT EXISTS pendientes_ingreso (
+    chat_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    username TEXT,
+    creado_en TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    aprobado INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (chat_id, user_id)
+);
 """
 
 # Migracion sobre una tabla ya existente (grupos) -- CREATE TABLE IF NOT
@@ -214,7 +252,14 @@ CREATE TABLE IF NOT EXISTS tecuhtli_estado (
 # "ALTER TABLE ... ADD COLUMN IF NOT EXISTS" documentado en
 # "Migraciones de esquema (plan)" de CLAUDE.md, que ahi si es valido.
 _MIGRACIONES_COLUMNAS = {
-    "grupos": [("principal", "INTEGER NOT NULL DEFAULT 0")],
+    "grupos": [
+        ("principal", "INTEGER NOT NULL DEFAULT 0"),
+        # 'ninguno' | 'captcha' | 'aprobacion' -- ver "Ingreso por aprobacion
+        # de administrador" mas arriba y mictlan/modules/grupos.py. Sin CHECK
+        # (mismo criterio que 'principal': este adaptador de staging no lo
+        # valida a nivel de esquema, se valida en Python al escribir).
+        ("modo_ingreso", "TEXT NOT NULL DEFAULT 'ninguno'"),
+    ],
 }
 
 _PLACEHOLDER_RE = re.compile(r"\$(\d+)")
@@ -290,6 +335,13 @@ async def _aplicar_migraciones_columnas(conn: aiosqlite.Connection) -> None:
         for nombre, definicion in columnas:
             if nombre not in existentes:
                 await conn.execute(f"ALTER TABLE {tabla} ADD COLUMN {nombre} {definicion}")
+    # Preserva el comportamiento ya probado antes de que existiera
+    # 'modo_ingreso': el grupo principal seguia el captcha normal
+    # hardcodeado -- se preserva ese default solo mientras nadie lo haya
+    # cambiado a proposito (columna todavia en su valor por defecto).
+    await conn.execute(
+        "UPDATE grupos SET modo_ingreso = 'captcha' WHERE principal = 1 AND modo_ingreso = 'ninguno'"
+    )
 
 
 async def init_pool() -> None:

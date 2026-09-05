@@ -22,6 +22,14 @@ _TIPOS_TAREA = {
         "anticaptcha": "RecaptchaV2TaskProxyless",
         "capsolver": "ReCaptchaV2TaskProxyLess",
     },
+    # Cloudflare Turnstile: la pagina telegram.org/support lo exige
+    # (sitekey 0x4AAAAAABeXKow67DnvUBPD); los 3 proveedores lo soportan
+    # segun sus docs oficiales (ver GUIA_SDK_MODULOS_EXTERNOS.md).
+    "turnstile": {
+        "2captcha": "TurnstileTaskProxyless",
+        "anticaptcha": "TurnstileTaskProxyless",
+        "capsolver": "AntiTurnstileTaskProxyLess",
+    },
     "imagen": {
         "2captcha": "ImageToTextTask",
         "anticaptcha": "ImageToTextTask",
@@ -127,6 +135,26 @@ async def resolver_recaptcha_v2(
     return solucion.get("gRecaptchaResponse", "")
 
 
+async def resolver_turnstile(
+    proveedor: str, sitekey: str, url: str, proxies: dict | None = None
+) -> str:
+    """Resuelve un Cloudflare Turnstile (ej. telegram.org/support).
+
+    Devuelve el token para POSTear a /support/captcha, que lo valida y
+    marca la cookie stel_ssid como verificada (ver JS onTurnstileSuccess
+    en la propia pagina). El token se pide Proxyless: la verificacion la
+    hace el proveedor con su propia IP, el POST posterior si sale por
+    nuestro proxy."""
+    task = {
+        "type": tipo_tarea("turnstile", proveedor),
+        "websiteURL": url,
+        "websiteKey": sitekey,
+    }
+    task_id = await _crear_tarea(proveedor, task, proxies)
+    solucion = await _resultado_tarea(proveedor, task_id, proxies)
+    return solucion.get("token", "")
+
+
 async def resolver_imagen(proveedor: str, imagen_base64: str, proxies: dict | None = None) -> str:
     task = {"type": tipo_tarea("imagen", proveedor), "body": imagen_base64}
     task_id = await _crear_tarea(proveedor, task, proxies)
@@ -140,5 +168,6 @@ __all__ = [
     "proveedores_disponibles",
     "balance",
     "resolver_recaptcha_v2",
+    "resolver_turnstile",
     "resolver_imagen",
 ]

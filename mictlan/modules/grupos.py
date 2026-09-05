@@ -80,8 +80,40 @@ async def obtener_principal() -> dict | None:
     return dict(fila) if fila else None
 
 
+async def obtener(chat_id: int) -> dict | None:
+    pool = db.get_pool()
+    async with pool.acquire() as conn:
+        fila = await conn.fetchrow("SELECT * FROM grupos WHERE chat_id = $1", chat_id)
+    return dict(fila) if fila else None
+
+
+_MODOS_INGRESO_VALIDOS = {"ninguno", "captcha", "aprobacion"}
+
+
+async def establecer_modo_ingreso(chat_id: int, modo: str) -> None:
+    """Elige, POR GRUPO, cual de los dos gates de nuevo miembro se aplica --
+    el captcha de aritmetica (mictlan/bienvenida.py) o la aprobacion manual
+    de un admin/vendedor (mictlan/ingreso_admin.py) -- nunca ambos a la vez
+    para el mismo chat. 'ninguno' deja el grupo sin gate, mismo default que
+    cualquier grupo recien detectado."""
+    if modo not in _MODOS_INGRESO_VALIDOS:
+        raise ValueError(f"modo_ingreso invalido: {modo!r}")
+    pool = db.get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("UPDATE grupos SET modo_ingreso = $1 WHERE chat_id = $2", modo, chat_id)
+
+
 def install_grupos(app) -> None:
     app.add_handler(ChatMemberHandler(_my_chat_member, ChatMemberHandler.MY_CHAT_MEMBER))
 
 
-__all__ = ["install_grupos", "listar", "activar", "desactivar", "establecer_principal", "obtener_principal"]
+__all__ = [
+    "install_grupos",
+    "listar",
+    "activar",
+    "desactivar",
+    "establecer_principal",
+    "obtener_principal",
+    "obtener",
+    "establecer_modo_ingreso",
+]

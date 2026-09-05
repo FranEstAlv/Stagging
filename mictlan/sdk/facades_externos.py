@@ -60,6 +60,12 @@ class CaptchaFacade:
             proveedor, imagen_base64, proxies=self._contexto.proxy.httpx()
         )
 
+    async def resolver_turnstile(self, proveedor: str, sitekey: str, url: str) -> str:
+        self._contexto._requiere("captcha.resolver")
+        return await captcha.resolver_turnstile(
+            proveedor, sitekey, url, proxies=self._contexto.proxy.httpx()
+        )
+
 
 class SmsFacade:
     """Expuesto como contexto.sms -- interfaz sobre HeroSMS y SMSPool.
