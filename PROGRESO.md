@@ -39,6 +39,13 @@ traduce rol→emoji (nunca texto plano). `mensajes.py` — envío de mensajes
 de servicio con botón "Cerrar" + autoborrado a 30 min. `formato.py` —
 helpers de HTML de Telegram (negrita, cursiva, link, etc.).
 `paginacion.py` — paginador genérico 2×3 reusable por cualquier panel.
+`logs_canal.py` — canal de logs (`LOGS_CHANNEL_ID`, opcional): persiste
+CADA evento en `logs_eventos` (insert-only) antes de intentar mandarlo a
+Telegram, así un canal mal configurado nunca pierde el evento. Registra
+absolutamente toda interacción (cada mensaje, cada callback, vía
+`main.py::_log_update`) además de los eventos semánticos ya cableados en
+moderación/captcha/ingreso/mantenimiento/grupos/errores. Invisible desde
+adentro del propio bot a propósito — ningún panel/comando lo menciona.
 
 **Membresía, moderación e ingreso de nuevo miembro**: `membresias.py`
 (ajuste de días, vencidas()), `moderacion.py` (baneo real = expulsión de
@@ -101,7 +108,14 @@ desinstalar), `excepciones.py`, `rutas.py`. Infraestructura de apoyo:
 `smsvirtual.py` (HeroSMS/SMSPool). Estas dos últimas piezas son
 servicios que el propio BOT consume — sin relación con
 `bienvenida.py`/`ingreso_admin.py` pese al nombre parecido de
-`captcha.py`.
+`captcha.py`. **Ciclo de vida corregido 2026-09-05**: entrypoint `async
+def` ahora se rechaza explícito (antes fallaba en silencio, sin
+registrar nada); `activar_modulo()` es idempotente (antes una doble
+activación sin desactivar en el medio dejaba handlers huérfanos sin
+referencia); `sys.path` se limpia al eliminar un módulo (antes crecía
+para siempre). Guía completa y normativa (instrucciones
+obligatorias/prohibitivas a nivel atómico) en
+`GUIA_SDK_MODULOS_EXTERNOS.md`, reescrita el mismo día.
 
 **Mictlantecuhtli** (segundo bot de respaldo/failover, proceso separado):
 `heartbeat.py` (instalado en el bot PRINCIPAL, late cada 60s, poda a
@@ -119,6 +133,48 @@ en orden (baneo antes que mando por el `ConversationHandler`),
 `allowed_updates=Update.ALL_TYPES` (necesario para `chat_member`).
 
 ---
+
+### 2026-09-05 (tarde) — Canal de logs, 3 fixes del SDK de módulos y reescritura de la guía SDK
+
+- **Qué se probó**:
+  - `mictlan/modules/perfil.py`: fix de `AttributeError` real en
+    `/perfil` (`.strftime()` sobre `membresia['fin']`, que llega como
+    `TEXT` plano de SQLite, no `datetime` — mismo criterio que
+    `_formatear_fecha()` de `modules/mando/usuarios.py`).
+  - `mictlan/logs_canal.py` (nuevo): canal de logs con persistencia
+    garantizada (`logs_eventos` insert-only, escrito ANTES de intentar
+    el envío a Telegram — mejora deliberada sobre `send_log_event` de
+    ALFA-1, que solo vive en el historial del chat). Conectado a: error
+    handler global (`main.py`), moderación (expulsión de todos los
+    grupos, reingreso bloqueado), captcha vencido, ingreso
+    aceptado/expulsado, grupo nuevo detectado, mantenimiento
+    activar/desactivar. Extendido después (a pedido explícito) para
+    registrar **absolutamente toda interacción** vía
+    `main.py::_log_update`, no solo los eventos curados. Confirmado por
+    grep que ningún panel/comando/menú del bot menciona el canal de
+    logs en texto visible al usuario — por seguridad, invisible desde
+    adentro del propio bot.
+  - `mictlan/sdk/importador.py` + `mictlan/sdk/ciclo_vida.py`: 3 huecos
+    reales del runtime del SDK, encontrados en una auditoría a fondo
+    pedida explícitamente — entrypoint `async def` que fallaba en
+    silencio (ahora se rechaza con `ModuloInvalido` antes de marcar el
+    módulo activo), `activar_modulo()` no idempotente (una doble
+    activación sin desactivar en el medio dejaba handlers huérfanos sin
+    referencia en el `Application`), `sys.path` que nunca se limpiaba
+    al eliminar un módulo.
+- **Cómo**: 2 aserciones (`/perfil`), 12 + 3 aserciones (`logs_canal.py`
+  + el logging total), 8 aserciones (los 3 fixes del SDK, creando
+  módulos de prueba reales en `external_modules/`, borrados al
+  terminar) — todas con SQLite temporal + `Application` real, Bot API
+  mockeada con `AsyncMock`.
+- **Resultado**: ✅ todas. Desplegado en cada paso (`systemctl restart
+  mictlan-staging.service`), journal limpio, los 11 módulos externos
+  reales (`eco`/`trivia`/`search`/`cuentatlg`/etc.) siguieron activos
+  sin interrupción tras los fixes del SDK.
+- **Documentación**: `GUIA_SDK_MODULOS_EXTERNOS.md` reescrita por
+  completo (la versión del 31/08 había quedado obsoleta) — cambio de
+  enfoque a instrucciones `OBLIGATORIO`/`PROHIBIDO` a nivel atómico,
+  con cita exacta de archivo:línea detrás de cada regla no obvia.
 
 ### 2026-09-05 — Captcha de bienvenida generalizado + ingreso por aprobación de admin + selector de modo por grupo
 
