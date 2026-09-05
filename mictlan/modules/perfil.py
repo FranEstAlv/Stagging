@@ -24,7 +24,10 @@ async def perfil_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         )
 
     if membresia and membresia["activa"] and membresia["fin"] is not None:
-        estado_membresia = f"activa hasta {membresia['fin'].strftime('%Y-%m-%d')}"
+        # 'fin' llega como TEXT plano de SQLite (ver db.py de staging) --
+        # nunca datetime, nunca .strftime() directo (mismo criterio que
+        # _formatear_fecha() en modules/mando/usuarios.py).
+        estado_membresia = f"activa hasta {membresia['fin'][:10]}"
     else:
         estado_membresia = "sin membresía activa"
 
