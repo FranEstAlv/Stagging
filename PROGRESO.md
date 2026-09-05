@@ -175,6 +175,11 @@ en orden (baneo antes que mando por el `ConversationHandler`),
   completo (la versión del 31/08 había quedado obsoleta) — cambio de
   enfoque a instrucciones `OBLIGATORIO`/`PROHIBIDO` a nivel atómico,
   con cita exacta de archivo:línea detrás de cada regla no obvia.
+  `INTERFAZ_MICTLAN.md` (nuevo, raíz del repo): catálogo puramente
+  estético (sin código) de todos los menús/paneles/botones que muestra
+  el bot — patrones universales, comandos de miembro, los dos gates de
+  nuevo miembro, la consola `/mando` completa, `/otorgar`,
+  Mictlantecuhtli y un ejemplo de módulo externo.
 
 ### 2026-09-05 — Captcha de bienvenida generalizado + ingreso por aprobación de admin + selector de modo por grupo
 

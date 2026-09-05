@@ -1,0 +1,97 @@
+ESTADO DE SESION - mictlan-staging - 2026-09-05 2026-09-05T15:25:00Z
+==================================================
+
+### git status --short
+(clean, nada pendiente -- todo commiteado y pusheado)
+
+### git log --oneline -8
+2061882 Agrega INTERFAZ_MICTLAN.md: catalogo visual de todos los menus/paneles/botones
+3fce3d3 Documenta en PROGRESO.md: canal de logs, 3 fixes del SDK, reescritura de la guia SDK
+0b20781 Reescribe GUIA_SDK_MODULOS_EXTERNOS.md: instrucciones obligatorias/prohibitivas a nivel atomico
+b15f016 Corrige 3 huecos reales del runtime del SDK de modulos externos
+95ff9d9 Canal de logs: registra absolutamente toda interaccion, no solo eventos curados
+deb18b3 Agrega canal de logs (LOGS_CHANNEL_ID) con persistencia en DB y error handler global
+1136857 Corrige AttributeError en /perfil: .strftime() sobre TEXT plano de SQLite
+c16e61d Agrega captcha Turnstile, sistemas de bienvenida (captcha/aprobacion admin) y esqueleto funcional en PROGRESO.md
+
+### unit diff (repo vs /etc)
+unit identica
+
+### systemctl is-enabled / is-active
+enabled=enabled active=active
+
+### systemctl status --no-pager
+● mictlan-staging.service - Mictlan Telegram Bot (staging, SQLite, desechable)
+     Loaded: loaded (/etc/systemd/system/mictlan-staging.service; enabled; preset: enabled)
+     Active: active (running) since Sat 2026-09-05 17:00:23 CEST; 24min ago
+   Main PID: 1556564 (python)
+      Tasks: 3 (limit: 9483)
+     Memory: 32.9M (peak: 33.7M)
+        CPU: 2.432s
+     CGroup: /system.slice/mictlan-staging.service
+             └─1556564 /home/olimpo/mictlan-staging/venv/bin/python main.py
+
+### journalctl -u mictlan-staging.service -n 15 --no-pager (sin errores)
+Solo polling normal de getUpdates (nivel TRACE/DEBUG) -- cero errores,
+cero excepciones desde el ultimo restart (17:00:23, tras los 3 fixes
+del SDK de modulos externos).
+
+### Otros servicios relacionados en este VPS (sudo NOPASSWD acotado)
+- mictlantecuhtli.service: activo (segundo bot de respaldo/failover)
+- cookies_stag.service: DETENIDO a pedido explicito esta sesion
+  (sigue "enabled" -- volveria a arrancar solo en un reboot; el usuario
+  puede correr "sudo systemctl disable cookies_stag.service" el mismo,
+  esa accion no esta en la lista NOPASSWD acotada)
+
+### Resumen de lo construido/corregido en esta sesion (2026-09-05)
+1. mictlan/captcha.py + sdk/facades_externos.py: soporte de Cloudflare
+   Turnstile para el CaptchaFacade del SDK.
+2. mictlan/bienvenida.py (nuevo): captcha de bienvenida (reto de
+   aritmetica con botones), aplicable a cualquier grupo con
+   grupos.modo_ingreso='captcha'.
+3. mictlan/ingreso_admin.py (nuevo): ingreso por aprobacion manual de
+   admin/vendedor, espejo del mecanismo real de ALFA-1
+   (send_welcome_message/pending_new_members/auto_expel_unapproved_member)
+   -- aviso a ADMIN_GROUP_ID, ban real sin des-banear si nadie acepta
+   en 1 minuto.
+4. Selector de modo_ingreso por grupo (ninguno/captcha/aprobacion) en
+   /mando > Grupos.
+5. Fix real: /perfil crasheaba (AttributeError) para cualquier usuario
+   con membresia activa.
+6. mictlan/logs_canal.py (nuevo): canal de logs con persistencia
+   garantizada (logs_eventos, insert-only, escrito ANTES de intentar
+   el envio a Telegram). Registra absolutamente TODA interaccion
+   (a pedido explicito), invisible desde adentro del propio bot (sin
+   mencion en ningun panel/comando, por seguridad).
+7. 3 fixes reales en el runtime del SDK de modulos externos
+   (mictlan/sdk/importador.py + ciclo_vida.py): entrypoint async
+   rechazado explicito, activar_modulo() idempotente, sys.path
+   limpiado al eliminar un modulo.
+8. GUIA_SDK_MODULOS_EXTERNOS.md reescrita por completo: instrucciones
+   OBLIGATORIO/PROHIBIDO a nivel atomico (la version anterior, del
+   31/08, habia quedado obsoleta).
+9. INTERFAZ_MICTLAN.md (nuevo, raiz del repo): catalogo puramente
+   estetico de todos los menus/paneles/botones que muestra Mictlan.
+10. Dos comparaciones completas contra el espejo ALFA-1
+    (OLIMPO/alfa1/): proyecto entero + sistema de modulos externos
+    (acoplar/desacoplar/ejecutar/renderizar/creditos). Hallazgos
+    documentados solo en la conversacion, no en un archivo aparte.
+
+Todo probado con SQLite temporal + Application real de
+python-telegram-bot (Bot API mockeada con AsyncMock, nunca red real)
+antes de desplegar, y cada deploy confirmado con journal limpio -- ver
+PROGRESO.md para el detalle completo por entrada.
+
+### Pendiente / decisiones abiertas para la proxima sesion
+- LOGS_CHANNEL_ID todavia no esta configurado en .env -- el canal de
+  logs funciona igual (persiste en logs_eventos) pero no aparece en
+  ningun chat real de Telegram hasta que se cree el canal y se agregue
+  la variable.
+- cookies_stag.service sigue "enabled" (arrancaria solo en un reboot)
+  -- deshabilitarlo requiere que el usuario corra el comando el mismo
+  (fuera del sudo NOPASSWD acotado de esta sesion).
+- Feasibility de aceptar modulos subidos por Telegram (discutido a
+  fondo, no construido): factible en ingenieria, pero "validar antes
+  de ejecutar" no existe como concepto real en el SDK -- exec_module()
+  corre todo el codigo top-level antes de chequear si el entrypoint
+  existe. Ver GUIA_SDK_MODULOS_EXTERNOS.md seccion 4 y 8.
