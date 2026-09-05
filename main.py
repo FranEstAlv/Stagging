@@ -79,6 +79,19 @@ async def _log_update(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         mensaje.text if mensaje else None,
         query.data if query else None,
     )
+    # Absolutamente TODA interacción (cada mensaje, cada click de botón) va
+    # tambien al canal de logs -- a pedido explicito de Fernando, sin
+    # limitarse a una seleccion "de lo mas importante". Esta funcion ya
+    # corre en group=-1 (observador de solo lectura sobre CUALQUIER
+    # update), asi que es el unico punto que necesita tocarse para lograr
+    # cobertura total sin repetir la llamada en cada handler de negocio.
+    await logs_canal.enviar_log(
+        context,
+        f"👁 <b>UPDATE</b>\nChat: <code>{chat.id if chat else '?'}</code> ({chat.type if chat else '?'})\n"
+        f"Usuario: <code>{user.id if user else '?'}</code> (@{html.escape(user.username) if user and user.username else '?'})\n"
+        f"Texto: <code>{html.escape(mensaje.text) if mensaje and mensaje.text else '—'}</code>\n"
+        f"Callback: <code>{html.escape(query.data) if query and query.data else '—'}</code>",
+    )
 
 
 async def _error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
