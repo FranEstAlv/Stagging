@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import inspect
 import sys
 from pathlib import Path
 
@@ -32,7 +33,28 @@ def importar_modulo(module_id: str, entrypoint: str, carpeta: Path):
     spec.loader.exec_module(mod)
     if not hasattr(mod, funcion):
         raise ModuloInvalido(f"El modulo '{module_id}' no define '{funcion}'")
-    return mod, getattr(mod, funcion)
+    instalar_fn = getattr(mod, funcion)
+    if inspect.iscoroutinefunction(instalar_fn):
+        # ciclo_vida.py llama a instalar_fn(recorder, contexto) SIN await
+        # (contrato: el entrypoint es siempre sincrono) -- un "async def"
+        # devolveria una corrutina sin ejecutar y el modulo quedaria
+        # "activo" en sdk_modulos sin haber registrado un solo handler,
+        # sin ningun error visible. Se rechaza antes de instalar nada.
+        raise ModuloInvalido(
+            f"El entrypoint '{funcion}' de '{module_id}' es 'async def' -- tiene que ser sincrono"
+        )
+    return mod, instalar_fn
 
 
-__all__ = ["importar_modulo"]
+def desregistrar_ruta(carpeta: Path) -> None:
+    """Inverso de agregar la carpeta a sys.path arriba -- se llama al
+    eliminar un modulo para que sys.path no crezca sin limite para
+    siempre con carpetas de modulos ya borrados del registro. Nunca
+    levanta si la ruta ya no esta (idempotente)."""
+    try:
+        sys.path.remove(str(carpeta))
+    except ValueError:
+        pass
+
+
+__all__ = ["importar_modulo", "desregistrar_ruta"]

@@ -7,7 +7,7 @@ from typing import Any
 from .. import db
 from .contexto import ContextoModulo
 from .excepciones import ModuloInvalido
-from .importador import importar_modulo
+from .importador import desregistrar_ruta, importar_modulo
 from .manifiestos import descubrir_manifiestos, leer_manifest
 from .recorders import AppRecorder
 from .rutas import EXTERNAL_DIR
@@ -100,6 +100,26 @@ async def obtener_modulo(module_id: str) -> dict | None:
     return d
 
 
+def _quitar_handlers_jobs(app, module_id: str) -> None:
+    """Saca del Application cualquier handler/job que este modulo tuviera
+    agregado de una instalacion anterior. Factoreado aparte de
+    desactivar_modulo() para que _instalar_o_reinstalar() lo pueda llamar
+    tambien ANTES de instalar -- asi activar_modulo() queda idempotente:
+    si se lo llama dos veces seguidas sin pasar por desactivar en el medio
+    (ej. dos admins clickeando "Activar" casi al mismo tiempo), la segunda
+    llamada limpia la primera tanda de handlers en vez de dejarla huerfana
+    y sin referencia en _handlers (bug real, encontrado 2026-09-05: antes
+    _handlers[module_id] se pisaba entero con la tanda nueva, perdiendo la
+    unica referencia que permitia sacar la tanda vieja del Application)."""
+    for handler, group in _handlers.pop(module_id, []):
+        try:
+            app.remove_handler(handler, group)
+        except (KeyError, ValueError):
+            pass  # ya no estaba agregado -- no es un error real
+    for job in _jobs.pop(module_id, []):
+        job.schedule_removal()
+
+
 async def _instalar_o_reinstalar(app, module_id: str, carpeta: Path, permisos: set[str]) -> None:
     """Corre install_modulo(app, contexto) grabando los handlers/jobs
     nuevos en _handlers/_jobs. Reusa el modulo ya importado si existe --
@@ -111,6 +131,7 @@ async def _instalar_o_reinstalar(app, module_id: str, carpeta: Path, permisos: s
         _loaded[module_id] = mod
         _instalar_fn[module_id] = instalar_fn
     instalar_fn = _instalar_fn[module_id]
+    _quitar_handlers_jobs(app, module_id)  # idempotencia -- ver docstring de arriba
     contexto = ContextoModulo(module_id, permisos)
     handlers: list = []
     jobs: list = []
@@ -145,13 +166,7 @@ async def desactivar_modulo(app, module_id: str) -> None:
     agregados y lo marca inactivo. El modulo sigue importado en memoria
     (para poder reactivarlo rapido sin releer el .py), simplemente deja de
     responder a nada hasta que se reactive."""
-    for handler, group in _handlers.pop(module_id, []):
-        try:
-            app.remove_handler(handler, group)
-        except (KeyError, ValueError):
-            pass  # ya no estaba agregado -- no es un error real
-    for job in _jobs.pop(module_id, []):
-        job.schedule_removal()
+    _quitar_handlers_jobs(app, module_id)
     pool = db.get_pool()
     async with pool.acquire() as conn:
         await conn.execute("UPDATE sdk_modulos SET activo = $1 WHERE module_id = $2", False, module_id)
@@ -167,6 +182,7 @@ async def eliminar_modulo(app, module_id: str) -> None:
     await desactivar_modulo(app, module_id)
     _loaded.pop(module_id, None)
     _instalar_fn.pop(module_id, None)
+    desregistrar_ruta(EXTERNAL_DIR / module_id)  # sys.path no debe crecer para siempre con modulos ya eliminados
     pool = db.get_pool()
     async with pool.acquire() as conn:
         await conn.execute("DELETE FROM sdk_modulos WHERE module_id = $1", module_id)
