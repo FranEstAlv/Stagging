@@ -240,6 +240,24 @@ CREATE TABLE IF NOT EXISTS pendientes_ingreso (
     aprobado INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (chat_id, user_id)
 );
+
+-- Canal de logs: bitacora persistente de eventos operativos/de seguridad
+-- (moderacion, mantenimiento, grupos nuevos, errores no manejados), ver
+-- mictlan/logs_canal.py. Insert-only, mismo patron que
+-- creditos_ledger/expulsiones. Mejora deliberada sobre ALFA-1
+-- (samaritan/core.py: send_log_event/LOG_CHANNEL_ID): ahi el evento SOLO
+-- vive en el historial del chat de Telegram -- si el canal esta mal
+-- configurado, borrado, o la API rate-limitea el envio puntual, el
+-- evento se pierde para siempre (solo los errores no manejados quedan
+-- aparte en su propia tabla, runtime_errors). Aca CUALQUIER evento
+-- (incluidos los errores) se persiste ANTES de intentar mandarlo a
+-- Telegram, asi que la auditoria nunca depende de que ese envio salga
+-- bien.
+CREATE TABLE IF NOT EXISTS logs_eventos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    texto TEXT NOT NULL,
+    creado_en TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 """
 
 # Migracion sobre una tabla ya existente (grupos) -- CREATE TABLE IF NOT

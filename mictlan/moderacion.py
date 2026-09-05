@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import html
+
 from telegram import Update
 from telegram.error import TelegramError
 from telegram.ext import ChatMemberHandler, ContextTypes
 
-from . import db
+from . import db, logs_canal
 from .modules import grupos as grupos_mod
 
 # Baneo + lista negra, espejo del concepto de ALFA-1
@@ -60,6 +62,12 @@ async def expulsar_de_todos_los_grupos(
                 admin_id,
                 resultado,
             )
+    aviso_motivo = f"\nMotivo: {html.escape(motivo)}" if motivo else ""
+    await logs_canal.enviar_log(
+        context,
+        f"🚫 <b>EXPULSIÓN</b> (tipo={tipo})\nUsuario: <code>{user_id}</code>\n"
+        f"Grupos: {ok}/{len(grupos)} ok{aviso_motivo}",
+    )
     return {"ok": ok, "fallidos": fallidos, "total": len(grupos)}
 
 
@@ -157,6 +165,10 @@ async def _reingreso_bloqueado(update: Update, context: ContextTypes.DEFAULT_TYP
             entrada["admin_id"],
             resultado_texto,
         )
+    await logs_canal.enviar_log(
+        context,
+        f"🔒 <b>REINGRESO BLOQUEADO</b> (blacklist)\nUsuario: <code>{usuario.id}</code>\nChat: <code>{chat_id}</code>",
+    )
 
 
 def install_moderacion(app) -> None:

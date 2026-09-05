@@ -3,7 +3,7 @@ from __future__ import annotations
 from telegram import Update
 from telegram.ext import ChatMemberHandler, ContextTypes
 
-from .. import db
+from .. import db, logs_canal
 
 # Deteccion automatica de grupos/canales -- se dispara con my_chat_member,
 # el evento real de alta del bot en un chat (lo agregan, lo hacen admin,
@@ -37,6 +37,11 @@ async def _my_chat_member(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             chat.type,
             False,
         )
+    await logs_canal.enviar_log(
+        context,
+        f"➕ <b>GRUPO NUEVO DETECTADO</b>\nChat: <code>{chat.id}</code>\n"
+        f"Nombre: {chat.title or chat.username or chat.id}\nTipo: {chat.type} — queda inactivo hasta que un admin lo active.",
+    )
 
 
 async def listar(solo_activos: bool = False) -> list[dict]:

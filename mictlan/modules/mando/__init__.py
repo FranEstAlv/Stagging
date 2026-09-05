@@ -107,7 +107,7 @@ async def mando_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         return
 
     if seccion == "mnt":
-        texto, teclado = await mantenimiento.manejar(user.id, partes[2:])
+        texto, teclado = await mantenimiento.manejar(context, user.id, partes[2:])
         await _editar_seguro(query, texto, teclado)
         return
 

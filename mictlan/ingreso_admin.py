@@ -6,7 +6,7 @@ from telegram import ChatPermissions, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import TelegramError
 from telegram.ext import CallbackQueryHandler, ChatMemberHandler, ContextTypes
 
-from . import db, roles
+from . import db, logs_canal, roles
 from .modules import grupos as grupos_mod
 
 # Ingreso por aprobacion de administrador -- espejo del mecanismo real de
@@ -205,6 +205,11 @@ async def _expirar_pendiente(context: ContextTypes.DEFAULT_TYPE) -> None:
         )
     except TelegramError:
         pass
+    await logs_canal.enviar_log(
+        context,
+        f"⛔ <b>INGRESO NO APROBADO</b> (ban real, sin des-banear)\n"
+        f"Usuario: <code>{user_id}</code>\nChat: <code>{chat_id}</code>\nResultado: <code>{resultado}</code>",
+    )
 
 
 async def _callback_aceptar(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -241,11 +246,15 @@ async def _callback_aceptar(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         )
 
     await query.answer("Aceptado.", show_alert=True)
+    nombre_admin = f"@{user.username}" if user.username else str(user.id)
     try:
-        nombre_admin = f"@{user.username}" if user.username else str(user.id)
         await query.message.edit_text(f"✅ <code>{target_id}</code> aceptado por {nombre_admin}.", parse_mode="HTML")
     except TelegramError:
         pass
+    await logs_canal.enviar_log(
+        context,
+        f"✅ <b>INGRESO ACEPTADO</b>\nUsuario: <code>{target_id}</code>\nChat: <code>{chat_id}</code>\nAceptado por: {nombre_admin}",
+    )
 
 
 def install_ingreso_admin(app) -> None:

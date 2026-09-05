@@ -8,7 +8,7 @@ from telegram.constants import ParseMode
 from telegram.error import TelegramError
 from telegram.ext import CallbackQueryHandler, ChatMemberHandler, ContextTypes
 
-from . import db, formato, roles
+from . import db, formato, logs_canal, roles
 from .modules import grupos as grupos_mod
 
 # Captcha de bienvenida -- espejo del concepto de ALFA-1
@@ -227,6 +227,10 @@ async def _expirar_captcha(context: ContextTypes.DEFAULT_TYPE) -> None:
         )
     except TelegramError:
         pass
+    await logs_canal.enviar_log(
+        context,
+        f"⏳ <b>CAPTCHA VENCIDO</b>\nUsuario: <code>{user_id}</code>\nChat: <code>{chat_id}</code>\nResultado: <code>{resultado}</code>",
+    )
 
 
 async def _callback_respuesta(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import html
 import logging
 import os
 
 from dotenv import load_dotenv
 from telegram import Update
+from telegram.error import BadRequest
 from telegram.ext import (
     Application,
     CallbackQueryHandler,
@@ -14,7 +16,7 @@ from telegram.ext import (
     filters,
 )
 
-from mictlan import almacen_modulos, db, heartbeat, moderacion, roles, sdk, vencimientos
+from mictlan import almacen_modulos, db, heartbeat, logs_canal, moderacion, roles, sdk, vencimientos
 from mictlan.bienvenida import install_bienvenida
 from mictlan.ingreso_admin import install_ingreso_admin
 from mictlan.mensajes import enviar_mensaje_servicio, install_mensajes
@@ -79,6 +81,22 @@ async def _log_update(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     )
 
 
+async def _error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Espejo de error_handler en ALFA-1 (samaritan/core.py) -- captura
+    cualquier excepcion no manejada durante el procesamiento de un update
+    para que nunca muera en silencio. "message is not modified" se
+    descarta (mismo criterio que _editar_seguro en modules/mando/__init__.py,
+    no es un error real). El resto va al canal de logs (persistido en
+    logs_eventos incluso si LOGS_CHANNEL_ID no esta configurado)."""
+    error = context.error
+    if isinstance(error, BadRequest) and "message is not modified" in str(error).lower():
+        return
+    logger.error("Excepción no manejada procesando un update", exc_info=error)
+    await logs_canal.enviar_log(
+        context, f"🔥 <b>ERROR</b>\n<code>{html.escape(str(error))[:500]}</code>"
+    )
+
+
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     message = update.effective_message
     if message:
@@ -105,6 +123,7 @@ def main() -> None:
         .post_shutdown(_post_shutdown)
         .build()
     )
+    app.add_error_handler(_error_handler)
     app.add_handler(CommandHandler("start", start_command))
     install_mensajes(app)
     install_perfil(app)

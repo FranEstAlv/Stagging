@@ -3,8 +3,9 @@ from __future__ import annotations
 import html
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ContextTypes
 
-from ... import mantenimiento
+from ... import logs_canal, mantenimiento
 from ...mensajes import agregar_boton_cerrar
 
 CB_MANTENIMIENTO = "mando:mnt"
@@ -46,13 +47,16 @@ async def _vista(nota: str | None = None) -> tuple[str, InlineKeyboardMarkup]:
     return texto, teclado
 
 
-async def manejar(admin_id: int, partes: list[str]) -> tuple[str, InlineKeyboardMarkup]:
+async def manejar(
+    context: ContextTypes.DEFAULT_TYPE, admin_id: int, partes: list[str]
+) -> tuple[str, InlineKeyboardMarkup]:
     """Punto de entrada unico llamado por el dispatcher de mando/__init__.py
     para cualquier callback_data que empiece con 'mando:mnt'. Sin
     ConversationHandler ni texto libre a proposito -- solo botones con
     duraciones fijas, mismo criterio que ALFA-1 (samaritan/ops/maintenance.py:
     30 min / 2 h / indefinido), consistente con la regla de centralizar en
-    /mando por botones en vez de comandos de texto sueltos."""
+    /mando por botones en vez de comandos de texto sueltos. Recibe 'context'
+    (mismo patron que grupos.manejar) para poder avisar al canal de logs."""
     accion = partes[0] if partes else None
     if accion is None:
         return await _vista()
@@ -61,14 +65,17 @@ async def manejar(admin_id: int, partes: list[str]) -> tuple[str, InlineKeyboard
         valor = partes[1] if len(partes) > 1 else None
         if valor == "indefinido":
             await mantenimiento.activar(None, admin_id)
+            await logs_canal.enviar_log(context, f"🛠 <b>MANTENIMIENTO ACTIVADO</b> (indefinido) por <code>{admin_id}</code>")
             return await _vista("✅ Mantenimiento activado (indefinido).")
         if valor is not None and valor.isdigit():
             await mantenimiento.activar(int(valor), admin_id)
+            await logs_canal.enviar_log(context, f"🛠 <b>MANTENIMIENTO ACTIVADO</b> ({valor} min) por <code>{admin_id}</code>")
             return await _vista(f"✅ Mantenimiento activado ({valor} min).")
         return await _vista()
 
     if accion == "stop":
         await mantenimiento.desactivar(admin_id)
+        await logs_canal.enviar_log(context, f"🛠 <b>MANTENIMIENTO FINALIZADO</b> por <code>{admin_id}</code>")
         return await _vista("✅ Mantenimiento finalizado.")
 
     return await _vista()
